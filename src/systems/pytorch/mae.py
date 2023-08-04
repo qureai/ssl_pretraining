@@ -6,6 +6,7 @@ from einops.layers.torch import Rearrange
 
 from src.datasets.catalog import DATASET_DICT
 from src.systems.pytorch import base_system
+from src.models.pytorch import decoder
 
 
 class MAESystem(base_system.BaseSystem):
@@ -18,13 +19,17 @@ class MAESystem(base_system.BaseSystem):
     def __init__(self, config):
         super().__init__(config)
 
+        self.config = config
         self.ce = torch.nn.CrossEntropyLoss(reduction='none')
         self.dataset = DATASET_DICT[config.dataset.name]
         if hasattr(self.dataset, 'MAE_OUTPUT_SIZE'):
             mae_output_size = self.dataset.MAE_OUTPUT_SIZE
-            self.predictor = torch.nn.Sequential(torch.nn.ReLU(), torch.nn.Linear(self.model.emb_dim, mae_output_size))
+            self.patch_transform = torch.nn.Sequential(torch.nn.ReLU(), torch.nn.Linear(self.model.emb_dim, mae_output_size))
+        self.decoder = decoder.CNNDecoder(config)
+        # self.masked_patch = nn.Parameter(torch.randn(self.config.dataset.patch_size**2))
+        self.masked_patch = nn.Parameter(torch.randn(self.config.model.kwargs.embed_dim))
 
-        self.accuracy = torchmetrics.Accuracy()
+        # self.accuracy = torchmetrics.Accuracy()
 
     def forward(self, x, prehead=False):
         return self.model.forward(x, prehead=prehead)
@@ -47,10 +52,10 @@ class MAESystem(base_system.BaseSystem):
             target_text = batch[1]
             target = [target_img, target_text]
         elif self.config.dataset.name in ['librispeech', 'chexpert', 'imagenet', 'eurosat', 'pamap2', 'cifar10_small',
-                                          'wafer']:
+                                          'wafer', 'qxr']:
             embed2 = nn.Sequential(
                 Rearrange(
-                    'b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1=self.dataset.PATCH_SIZE[0], p2=self.dataset.PATCH_SIZE[1]
+                    'b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1=self.config.dataset.patch_size, p2=self.config.dataset.patch_size
                 )
             )
             target = embed2(batch[0])
@@ -74,13 +79,21 @@ class MAESystem(base_system.BaseSystem):
         self.log('val_loss', loss.item(), on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
 
     def objective_continuous(self, embs, is_masked, target, embs_have_cls):
-        preds = self.predictor(embs)
+        patch_transform = self.patch_transform(embs)
         if embs_have_cls:
-            preds = preds[:, 1:]  # Remove [CLS] token.
+            patch_transform = patch_transform[:, 1:]  # Remove [CLS] token.
+        preds = self.decoder(patch_transform)
+        reshape = nn.Sequential(
+                Rearrange(
+                    'b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1=self.config.dataset.patch_size, p2=self.config.dataset.patch_size
+                )
+            )
+        preds = reshape(preds)
         target = target.reshape(preds.shape[0], preds.shape[1], -1)
         diff = target[is_masked] - preds[is_masked]
 
         loss = torch.norm(diff, p=2, dim=-1).mean()
+        # loss = torch.nn.MSELoss()(preds[is_masked], target[is_masked])
         return loss
 
     def objective_tokens(self, embs, is_masked, target, embs_have_cls, emb_module_idx=0):
@@ -94,9 +107,12 @@ class MAESystem(base_system.BaseSystem):
 
     def objective(self, embs, is_masked, target, indices_to_mask):
         # TODO: generalize to do this automatically based on specs.
+        
+        if self.config.model.name == 'sam_adapt':
+            loss = self.objective_continuous(embs, is_masked, target, embs_have_cls=False)
 
         # Multimodal (tokenized and continuous)
-        if self.config.dataset.name in ['mscoco']:
+        elif self.config.dataset.name in ['mscoco']:
             image_seq_len = target[0].size(1)
             # Don't include CLS token
             img_loss = self.objective_continuous(
@@ -137,8 +153,9 @@ class MAESystem(base_system.BaseSystem):
         # [batch_size, num_to_mask, emb_size] (repeat along last dimension for torch.scatter)
         indices_to_mask_for_scatter = indices_to_mask.unsqueeze(-1).repeat(1, 1, embs.size(-1))
 
-        zeros = torch.zeros_like(indices_to_mask_for_scatter, device=embs.device, dtype=embs.dtype)
-        masked_embs = torch.scatter(embs, -2, indices_to_mask_for_scatter, zeros)
+        # zeros = torch.zeros_like(indices_to_mask_for_scatter, device=embs.device, dtype=embs.dtype)
+        masked_patches = self.masked_patch.repeat(embs.size(0), num_to_mask, 1).to(embs.dtype).to(embs.device)
+        masked_embs = torch.scatter(embs, -2, indices_to_mask_for_scatter, masked_patches)
 
         is_masked = torch.zeros(embs.size(0), embs.size(1), dtype=int, device=embs.device)
         is_masked = torch.scatter(is_masked, 1, indices_to_mask, 1)

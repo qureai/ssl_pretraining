@@ -1,0 +1,10 @@
+# @package _group_
+loss: binary_cross_entropy
+metric: auroc
+
+name: qxr
+batch_size: 10
+num_workers: 4
+image_size: 512
+patch_size: 16
+in_channels: 1

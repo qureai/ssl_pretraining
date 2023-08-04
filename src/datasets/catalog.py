@@ -2,7 +2,7 @@ from collections import namedtuple
 
 from src.datasets.captioned_images import mscoco, vqa
 from src.datasets.genomics import genomics
-from src.datasets.medical_images import chexpert, xray8
+from src.datasets.medical_images import chexpert, xray8, qxr
 from src.datasets.natural_images import aircraft, cifar, cu_birds, dtd, imagenet, traffic_sign, vgg_flower
 from src.datasets.particle_physics import higgs
 from src.datasets.proteins import fluorescence, pfam, scop, secondary_struct, stability
@@ -21,6 +21,7 @@ DATASET_DICT = {
     # Medical images.
     'chexpert': chexpert.CheXpert,
     'xray8': xray8.ChestXray8,
+    'qxr': qxr.QXR,
 
     # Natural images.
     'aircraft': aircraft.Aircraft,
@@ -100,7 +101,7 @@ DATASET_DICT = {
 
 PRETRAINING_DATASETS = [
     'cifar10_small', 'imagenet', 'pamap2', 'pamap2_spectrogram', 'mscoco', 'wikitext103', 'chexpert', 'librispeech', 'mc4',
-    'genomics', 'higgs', 'pfam', 'wafer', 'eurosat'
+    'genomics', 'higgs', 'pfam', 'wafer', 'eurosat', 'qxr'
 ]
 
 UNLABELED_DATASETS = ['wikitext103', 'librispeech', 'mc4']

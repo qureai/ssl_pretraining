@@ -87,9 +87,9 @@ class SSLOnlineEvaluator(Callback):  # pragma: no cover
         self.metric = metric.lower()
         self.loss = loss.lower()
         if self.metric == 'auroc':
-            self.auroc = AUROC(num_classes=num_classes)
+            self.auroc = AUROC(num_classes=num_classes, task='binary')
 
-    def on_pretrain_routine_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
+    def on_fit_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
         pl_module.non_linear_evaluator = SSLEvaluator(
             n_input=self.z_dim,
             n_classes=self.num_classes,
@@ -127,7 +127,7 @@ class SSLOnlineEvaluator(Callback):  # pragma: no cover
         outputs: Sequence,
         batch: Sequence,
         batch_idx: int,
-        dataloader_idx: int,
+        # dataloader_idx: int, -> doesn't exist in lightning==1.9
     ) -> None:
         x, y = self.to_device(batch, pl_module.device)
 
@@ -165,7 +165,7 @@ class SSLOnlineEvaluator(Callback):  # pragma: no cover
 
         pl_module.log('online_train_loss', mlp_loss, on_step=True, on_epoch=False, sync_dist=True, prog_bar=False)
 
-    def on_train_epoch_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
+    def on_before_val_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
         # log auroc at end of epoch here
         if self.metric == 'auroc':
             pl_module.log(

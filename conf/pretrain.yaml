@@ -1,14 +1,14 @@
-algorithm: emix
-data_root: ./DATASETS
-gpus: 0
+algorithm: mae
+data_root: /models_common_e2e/data/cxr_data/
+gpus: [0,1]
 budget: 0.05
-corruption_rate: 0.15
+corruption_rate: 0.75
 
 framework: pytorch
 
 exp:
-  base_dir: ./EXPS
-  name: ???
+  base_dir: /cache/datanas1/sai.kiran/model_checkpoints/ssl_pretraining/
+  name: ???  # set this to the name of the experiment
 
 trainer:
   weights_summary: top
@@ -16,26 +16,34 @@ trainer:
   val_check_interval: 1.0
   limit_val_batches: 1.0
   resume_from_checkpoint: null
-  precision: 16  # set to 16 for O1 mixed precision, 32 for O0 full precision
-  max_steps: 100_000
-  ckpt_every_n_steps: 20_000
+  precision: 16
+  max_epochs: 500
+  ckpt_every_n_epochs: 4
   gradient_clip_val: 0
   strategy: ddp
-  accumulate_grad_batches: 1
+  accumulate_grad_batches: 50
+  train_samples: 5000
+  val_samples: 500
 
 optim:
   name: adam
-  lr: 0.0001
+  lr: 0.001
   weight_decay: 0.0001
   momentum: 0.9  # only used for momentum-based optimizers
+  lr_scheduler: onecyclelr
 
 contpred:
   normalize: 0
   symmetric_loss: 0
 
 defaults:
-  - model: transformer
-  - dataset: wikitext103
+  - model: sam_adapt
+  - dataset: qxr
+
+dataset:
+  image_size: 1024
+  batch_size: 3
+  num_workers: 20
 
 # Disable hydra creation of directories
 hydra:

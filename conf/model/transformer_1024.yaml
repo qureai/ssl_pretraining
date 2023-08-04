@@ -1,0 +1,13 @@
+# @package _group_
+name: transformer
+kwargs:
+  embed_dim: &dim 768
+  out_dim: 256
+  dim: *dim
+  depth: 12
+  heads: 12
+  mlp_dim: 3072
+  pool: mean
+  dim_head: 64
+  dropout: 0.1
+  emb_dropout: 0.1

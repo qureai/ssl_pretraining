@@ -1,0 +1,15 @@
+# @package _group_
+name: sam_adapt
+kwargs:
+  args:
+    thd: false
+    chunk: 0
+  img_size: 1024
+  embed_dim: 768
+  out_chans: &dim 256
+  depth: 12
+  num_heads: 12
+  dim: *dim
+  in_chans: 3
+  pixel_mean: [123.675, 116.28, 103.53]
+  pixel_std: [58.395, 57.12, 57.375]
